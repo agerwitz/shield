@@ -4,7 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"errors"
+	"fmt"
 	"io"
 	"strings"
 
@@ -15,8 +15,11 @@ import (
 func Stream(enctype string, key, iv []byte) (cipher.Stream, cipher.Stream, error) {
 	// cipher-mode combinations included so far are:
 	// aes-cfb, blowfish-cfb, twofish-cfb
+	if enctype == "" {
+		return nil, nil, fmt.Errorf("No encryption type specified")
+	}
 	if !strings.Contains(enctype, "-") {
-		return nil, nil, errors.New("Invalid encryption type " + enctype + " specified")
+		return nil, nil, fmt.Errorf("Invalid encryption type '%s' specified", enctype)
 	}
 	cipherName := strings.Split(enctype, "-")[0]
 	mode := strings.Split(enctype, "-")[1]
@@ -34,7 +37,7 @@ func Stream(enctype string, key, iv []byte) (cipher.Stream, cipher.Stream, error
 	case "twofish":
 		block, err = twofish.NewCipher(key)
 	default:
-		return nil, nil, errors.New("Invalid cipher " + cipherName + " specified")
+		return nil, nil, fmt.Errorf("Invalid cipher '%s' specified", cipherName)
 	}
 
 	if err != nil {
@@ -49,7 +52,7 @@ func Stream(enctype string, key, iv []byte) (cipher.Stream, cipher.Stream, error
 	case "ctr":
 		return cipher.NewCTR(block, iv), cipher.NewCTR(block, iv), nil
 	default:
-		return nil, nil, errors.New("Invalid encryption mode " + cipherName + " specified")
+		return nil, nil, fmt.Errorf("Invalid encryption mode '%s' specified", cipherName)
 	}
 }
 
