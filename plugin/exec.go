@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -32,12 +33,22 @@ func ExecWithOptions(opts ExecOptions) error {
 	DEBUG("Executing '%s' with arguments %v", cmdArgs[0], cmdArgs[1:])
 
 	// some liberties will be taken here.  hang on!
-	keyRaw := "\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD"
-	ivRaw := "\xCA\xFE\xBA\xBE\xAB\xAD\x1D\xEA"
-	ivRaw = keyRaw
+	keyRaw, err := hex.DecodeString(os.Getenv("SHIELD_ENCRYPTION_KEY"))
+	if err != nil {
+		return err
+	}
+	ivRaw, err := hex.DecodeString(os.Getenv("SHIELD_ENCRYPTION_IV"))
+	if err != nil {
+		return err
+	}
+	//	keyRaw := "\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD"
+	//	ivRaw := "\xCA\xFE\xBA\xBE\xAB\xAD\x1D\xEA"
+	//	ivRaw = keyRaw
 
-	encStream, decStream, err := crypter.Stream("aes256-ctr", keyRaw, ivRaw)
-
+	encStream, decStream, err := crypter.Stream(os.Getenv("SHIELD_ENCRYPTION_TYPE"), keyRaw, ivRaw)
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	if opts.Stdout != nil {
 		cmd.Stdout = cipher.StreamWriter{

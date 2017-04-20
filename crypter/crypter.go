@@ -12,9 +12,12 @@ import (
 	"golang.org/x/crypto/twofish"
 )
 
-func Stream(enctype string, key string, iv string) (cipher.Stream, cipher.Stream, error) {
+func Stream(enctype string, key, iv []byte) (cipher.Stream, cipher.Stream, error) {
 	// cipher-mode combinations included so far are:
 	// aes-cfb, blowfish-cfb, twofish-cfb
+	if !strings.Contains(enctype, "-") {
+		return nil, nil, errors.New("Invalid encryption type " + enctype + " specified")
+	}
 	cipherName := strings.Split(enctype, "-")[0]
 	mode := strings.Split(enctype, "-")[1]
 
@@ -25,11 +28,11 @@ func Stream(enctype string, key string, iv string) (cipher.Stream, cipher.Stream
 	// Was originally going to specify aes128 or aes256, but the keysize determines
 	// which is used.
 	case "aes128", "aes256":
-		block, err = aes.NewCipher([]byte(key))
+		block, err = aes.NewCipher(key)
 	case "blowfish":
-		block, err = blowfish.NewCipher([]byte(key))
+		block, err = blowfish.NewCipher(key)
 	case "twofish":
-		block, err = twofish.NewCipher([]byte(key))
+		block, err = twofish.NewCipher(key)
 	default:
 		return nil, nil, errors.New("Invalid cipher " + cipherName + " specified")
 	}
@@ -40,11 +43,11 @@ func Stream(enctype string, key string, iv string) (cipher.Stream, cipher.Stream
 
 	switch mode {
 	case "cfb":
-		return cipher.NewCFBEncrypter(block, []byte(iv)), cipher.NewCFBDecrypter(block, []byte(iv)), nil
+		return cipher.NewCFBEncrypter(block, iv), cipher.NewCFBDecrypter(block, iv), nil
 	case "ofb":
-		return cipher.NewOFB(block, []byte(iv)), cipher.NewOFB(block, []byte(iv)), nil
+		return cipher.NewOFB(block, iv), cipher.NewOFB(block, iv), nil
 	case "ctr":
-		return cipher.NewCTR(block, []byte(iv)), cipher.NewCTR(block, []byte(iv)), nil
+		return cipher.NewCTR(block, iv), cipher.NewCTR(block, iv), nil
 	default:
 		return nil, nil, errors.New("Invalid encryption mode " + cipherName + " specified")
 	}
