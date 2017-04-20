@@ -31,6 +31,11 @@ func ExecWithOptions(opts ExecOptions) error {
 	}
 	DEBUG("Executing '%s' with arguments %v", cmdArgs[0], cmdArgs[1:])
 
+	// some liberties will be taken here.  hang on!
+	keyRaw := "\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD\xDE\xAD\xBE\xEF\xDE\xCA\xFB\xAD"
+	ivRaw := "\xCA\xFE\xBA\xBE\xAB\xAD\x1D\xEA"
+	ivRaw = keyRaw
+
 	encStream, decStream, err := crypter.Stream("aes256-ctr", keyRaw, ivRaw)
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
