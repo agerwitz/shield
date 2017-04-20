@@ -1,11 +1,15 @@
 {
 	"ImportPath": "github.com/starkandwayne/shield",
 	"GoVersion": "go1.7",
-	"GodepVersion": "v74",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
+		{
+			"ImportPath": "github.com/Azure/azure-sdk-for-go/storage",
+			"Rev": "4897648e310020dae650a89c31ff633284c13a24"
+		},
 		{
 			"ImportPath": "github.com/ErikDubbelboer/gspt",
 			"Rev": "90553243e3346b62d0dccd1544a2030ac7237068"
@@ -123,8 +127,8 @@
 		},
 		{
 			"ImportPath": "github.com/hashicorp/consul/api",
-			"Comment": "v0.7.1-6-gdf51fde",
-			"Rev": "df51fde7b071a3211fda039c4272b647254a568a"
+			"Comment": "v0.8.0",
+			"Rev": "402636ff2db998edef392ac6d59210d2170b3ebf"
 		},
 		{
 			"ImportPath": "github.com/hashicorp/go-cleanhttp",
@@ -134,6 +138,18 @@
 			"ImportPath": "github.com/hashicorp/serf/coordinate",
 			"Comment": "v0.8.0-31-gf679d75",
 			"Rev": "f679d7594a349263f6118db40d87122d3a474e7d"
+		},
+		{
+			"ImportPath": "github.com/jhunt/go-cli",
+			"Rev": "d74b1b6905297834d014b95038b9a58539832140"
+		},
+		{
+			"ImportPath": "github.com/jhunt/go-envirotron",
+			"Rev": "6bdf7cebaa407f9ef7869eeb673a268d04126c90"
+		},
+		{
+			"ImportPath": "github.com/jhunt/go-snapshot",
+			"Rev": "92984e0ad8d83220d55e97554c5ec8d41d8edc18"
 		},
 		{
 			"ImportPath": "github.com/jmoiron/sqlx",

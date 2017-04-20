@@ -94,6 +94,25 @@ func main() {
 			Target: "no",
 			Store:  "yes",
 		},
+		Example: `
+{
+  "scality_host"        : "your-scality-host",       # REQUIRED
+  "access_key_id"       : "your-access-key-id",      # REQUIRED
+  "secret_access_key"   : "your-secret-access-key",  # REQUIRED
+  "bucket"              : "name-of-your-bucket",     # REQUIRED
+
+  "skip_ssl_validation" : false,                 # Skip certificate verification (not recommended)
+  "prefix"              : "/path/in/bucket",     # where to store archives, inside the bucket
+  "socks5_proxy"        : ""                     # optional SOCKS5 proxy for accessing S3
+}
+`,
+		Defaults: `
+{
+  "skip_ssl_validation" : false,  # Always verify certificates
+  "prefix"              : "",     # store archives in the root
+  "socks5_proxy"        : ""      # don't use a proxy
+}
+`,
 	}
 
 	plugin.Run(p)
@@ -321,7 +340,10 @@ func (scal ScalityConnectionInfo) genBackupPath() string {
 }
 
 func (scal ScalityConnectionInfo) Connect() (*minio.Client, error) {
-	scalityClient, err := minio.NewV2(scal.Host, scal.AccessKey, scal.SecretKey, false)
+	// github.com/starkandwayne/minio-go has the last field mean "secure", whereas the s3 plugin
+	// is using an older copy of minio (vendored), and this field used to mean "insecure".
+	// See https://github.com/starkandwayne/shield/issues/230
+	scalityClient, err := minio.NewV2(scal.Host, scal.AccessKey, scal.SecretKey, true)
 	if err != nil {
 		return nil, err
 	}

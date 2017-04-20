@@ -5,16 +5,19 @@
 /docker-postgres*
 /dummy
 /elasticsearch
+/mock
 /mysql
 /postgres
 /redis-broker
 /rabbitmq-broker
 /s3
+/azure
 /fs
 /scality
 /consul
 /xtrabackup
 /mongo
+/mock
 .DS_Store
 
 # ignore release testing output

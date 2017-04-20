@@ -1,22 +1,19 @@
 # Run me to verify that all tests pass and all binaries are buildable before pushing!
 # If you do not, then Travis will be sad.
 
-export GO15VENDOREXPERIMENT=1
-
 BUILD_TYPE?=build
 
 # Everything; this is the default behavior
-all: format tests shield plugins
+all: format shield plugins test
 
 # go fmt ftw
 format:
 	go list ./... | grep -v vendor | xargs go fmt
 
 # Running Tests
-tests: test
 test:
-	ginkgo * ./cmd/shield
-	go list ./... | grep -v vendor | xargs go vet
+	go test ./...
+	./t/api
 
 # Running Tests for race conditions
 race:
@@ -39,16 +36,22 @@ plugins:
 	go $(BUILD_TYPE) ./plugin/fs
 	go $(BUILD_TYPE) ./plugin/docker-postgres
 	go $(BUILD_TYPE) ./plugin/dummy
-	go $(BUILD_TYPE) ./plugin/elasticsearch
 	go $(BUILD_TYPE) ./plugin/postgres
 	go $(BUILD_TYPE) ./plugin/redis-broker
 	go $(BUILD_TYPE) ./plugin/s3
+	go $(BUILD_TYPE) ./plugin/azure
 	go $(BUILD_TYPE) ./plugin/mysql
 	go $(BUILD_TYPE) ./plugin/xtrabackup
 	go $(BUILD_TYPE) ./plugin/rabbitmq-broker
 	go $(BUILD_TYPE) ./plugin/scality
 	go $(BUILD_TYPE) ./plugin/consul
 	go $(BUILD_TYPE) ./plugin/mongo
+
+clean:
+	rm shieldd shield-agent shield-schema shield
+	rm fs docker-postgres dummy postgres redis-broker
+	rm s3 azure mysql xtrabackup rabbitmq-broker
+	rm consul mongo scality
 
 
 # Run tests with coverage tracking, writing output to coverage/
@@ -86,10 +89,10 @@ release:
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/fs"                ./plugin/fs
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/docker-postgres"   ./plugin/docker-postgres
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/dummy"             ./plugin/dummy
-	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/elasticsearch"     ./plugin/elasticsearch
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/postgres"          ./plugin/postgres
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/redis-broker"      ./plugin/redis-broker
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/s3"                ./plugin/s3
+	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/azure"                ./plugin/azure
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/mysql"             ./plugin/mysql
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/rabbitmq-broker"   ./plugin/rabbitmq-broker
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/scality"           ./plugin/scality
