@@ -30,9 +30,9 @@ func Stream(enctype string, key, iv []byte) (cipher.Stream, cipher.Stream, error
 	switch cipherName {
 	// Was originally going to specify aes128 or aes256, but the keysize determines
 	// which is used.
-	case "aes128", "aes256":
+	case "aes128", "aes256": // should we pull 128-bit? FIXME
 		block, err = aes.NewCipher(key)
-	case "blowfish":
+	case "blowfish": // not recommended by its author; pull it?  FIXME
 		block, err = blowfish.NewCipher(key)
 	case "twofish":
 		block, err = twofish.NewCipher(key)
