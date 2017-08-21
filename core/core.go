@@ -1,19 +1,23 @@
 package core
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/pborman/uuid"
 	"github.com/starkandwayne/goutils/log"
 	"github.com/starkandwayne/goutils/timestamp"
-
 	"github.com/starkandwayne/shield/db"
 	"github.com/starkandwayne/shield/timespec"
+	"gopkg.in/yaml.v2"
 )
 
 var Version = "(development)"
@@ -102,6 +106,7 @@ func (core *Core) Run() error {
 	}
 
 	core.cleanup()
+	core.initVault()
 	core.api()
 	core.runWorkers()
 
@@ -394,18 +399,74 @@ func (core *Core) worker(id int) {
 			}
 		}()
 
+		if task.Op == db.BackupOperation {
+			task.ArchiveUUID = uuid.NewRandom()
+
+			cmd := exec.Command("safe", "gen", "-p", "0-9A-F", "32", "secret/archives/"+task.ArchiveUUID.String(), "key")
+			err := cmd.Run()
+			if err != nil {
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to generate encryption keys: %s\n", id, err)
+				core.handleFailure(task)
+				continue
+			}
+
+			cmd = exec.Command("safe", "gen", "-p", "0-9A-F", "16", "secret/archives/"+task.ArchiveUUID.String(), "iv")
+			err = cmd.Run()
+			if err != nil {
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to generate encryption iv: %s\n", id, err)
+				core.handleFailure(task)
+				continue
+			}
+
+			cmd = exec.Command("safe", "set", "secret/archives/"+task.ArchiveUUID.String(), "type=aes-256-cbc")
+			err = cmd.Run()
+			if err != nil {
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption type: %s\n", id, err)
+				core.handleFailure(task)
+				continue
+			}
+
+			cmd = exec.Command("safe", "set", "secret/archives/"+task.ArchiveUUID.String(), "uuid="+task.ArchiveUUID.String())
+			err = cmd.Run()
+			if err != nil {
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
+				core.handleFailure(task)
+				continue
+			}
+		}
+
+		cmd := exec.Command("safe", "get", "secret/archives/"+task.ArchiveUUID.String())
+		var outb bytes.Buffer
+		cmd.Stdout = &outb
+		err := cmd.Run()
+		if err != nil {
+			core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
+			core.handleFailure(task)
+			continue
+		}
+		var e Encrypt
+		err = yaml.Unmarshal(outb.Bytes(), &e)
+		if err != nil {
+			core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
+			core.handleFailure(task)
+			continue
+		}
 		/* connect to the remote SSH agent for this specific request
 		   (a worker may connect to lots of different agents in its
 		    lifetime; these connections endure long enough to submit
 		    the agent command and gather the exit code + output) */
-		err := core.agent.Run(task.Agent, stdout, stderr, &AgentCommand{
+		err = core.agent.Run(task.Agent, stdout, stderr, &AgentCommand{
 			Op:             task.Op,
 			TargetPlugin:   task.TargetPlugin,
 			TargetEndpoint: task.TargetEndpoint,
 			StorePlugin:    task.StorePlugin,
 			StoreEndpoint:  task.StoreEndpoint,
 			RestoreKey:     task.RestoreKey,
+			EncryptType:    e.EncryptType,
+			EncryptKey:     e.EncryptKey,
+			EncryptIV:      e.EncryptIV,
 		})
+
 		if err != nil {
 			core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to run command against %s: %s\n", id, task.Agent, err)
 			core.handleFailure(task)
@@ -425,7 +486,7 @@ func (core *Core) worker(id int) {
 			} else {
 				if v.Key != "" {
 					log.Infof("  %s: restore key is %s", task.UUID, v.Key)
-					if id, err := core.DB.CreateTaskArchive(task.UUID, v.Key, time.Now()); err != nil {
+					if id, err := core.DB.CreateTaskArchive(task.UUID, task.ArchiveUUID, v.Key, time.Now()); err != nil {
 						log.Errorf("  %s: !! failed to update database: %s", task.UUID, err)
 					} else if failed {
 						core.DB.InvalidateArchive(id)
@@ -531,4 +592,133 @@ func networkIdentity() (string, string) {
 		return v6ip, host
 	}
 	return "(unknown)", ""
+}
+
+func authVault(init bool) {
+	var outerr bytes.Buffer
+	cmd := exec.Command("safe", "status")
+	cmd.Stderr = &outerr
+	err := cmd.Run()
+	if err != nil || init == true {
+		if strings.Contains(outerr.String(), "You are not authenticated to a Vault.") || init == true {
+			file, err := os.Open("keys")
+			if err != nil {
+				fmt.Println("failed to open key file")
+			}
+
+			authToken := make([]byte, 36)
+			stat, err := os.Stat("keys")
+			start := stat.Size() - 37
+			_, err = file.ReadAt(authToken, start)
+			if err != nil {
+				fmt.Println("failed to read auth token")
+			}
+			file.Close()
+			fmt.Println("AuthToken:" + string(authToken))
+			fmt.Println("Authenticating...")
+			cmdstr := "echo " + string(authToken) + " | safe auth"
+			_, err = exec.Command("bash", "-c", cmdstr).Output()
+			if err != nil {
+				fmt.Println("cant auth against safe")
+			}
+			cmd = exec.Command("safe", "status")
+			err = cmd.Run()
+			if err != nil {
+				log.Errorf("shield vault failed initialization process: %s", err)
+				os.Exit(2)
+			}
+		}
+	}
+}
+
+func unsealVault() {
+	fmt.Println("Unsealing vault...")
+
+	keys, err := os.Open("keys")
+	if err != nil {
+		log.Errorf("Failed to open key file: %s", err)
+	}
+
+	scanner := bufio.NewScanner(keys)
+	for scanner.Scan() {
+		cmdstr := "safe vault unseal " + scanner.Text()
+		_, err := exec.Command("bash", "-c", cmdstr).Output()
+		if err != nil {
+			log.Errorf("shield vault failed unseal process: %s", err)
+		}
+	}
+
+	keys.Close()
+}
+
+func vaultStatus() (string, error) {
+	var outerr bytes.Buffer
+	cmd := exec.Command("safe", "vault", "status")
+	cmd.Stdout = &outerr
+	cmd.Stderr = &outerr
+	err := cmd.Run()
+	return outerr.String(), err
+}
+
+func sealVault() (string, error) {
+	var outerr bytes.Buffer
+	cmd := exec.Command("safe", "vault", "seal")
+	cmd.Stdout = &outerr
+	cmd.Stderr = &outerr
+	err := cmd.Run()
+	return outerr.String(), err
+}
+
+func (core *Core) initVault() {
+	var master string
+	fmt.Print("Enter Master Password:")
+	_, err := fmt.Scanf("%s\n", &master)
+	if err != nil {
+		log.Errorf("master password failed to initialize: %s", err)
+		os.Exit(2)
+	}
+	authVault(false)
+	status, err := vaultStatus()
+	if err != nil {
+		if strings.Contains(status, "server is not yet initialized") {
+			fmt.Println("Initializing Shield Vault...")
+			output, err := exec.Command("safe", "vault", "init").Output()
+			if err != nil {
+				log.Errorf("shield vault failed initialization process: %s", err)
+				os.Exit(2)
+			}
+			os.Remove("keys")
+			file, err := os.OpenFile("keys", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
+			if err != nil {
+				log.Errorf("couldn't create the file/directory: %s", err)
+				os.Exit(2)
+			}
+			for i, line := range strings.Split(strings.TrimSuffix(string(output), "\n"), "\n") {
+				if i < 5 {
+					fmt.Println(line[14:len(line)])
+					file.WriteString(line[14:len(line)] + "\n")
+				} else if i == 5 {
+					fmt.Println(line[20:len(line)])
+					file.WriteString(line[20:len(line)] + "\n")
+				} else {
+					break
+				}
+			}
+			file.Close()
+			authVault(true)
+			unsealVault()
+		}
+		if strings.Contains(status, "Sealed: true") {
+			unsealVault()
+		}
+	}
+
+	//Check to see if authourized yet
+	status, err = vaultStatus()
+	if err != nil || !strings.Contains(status, "Sealed: false") {
+		log.Errorf("shield vault failed to unseal: %s", err)
+		os.Exit(2)
+	} else {
+		fmt.Println("Good to go")
+	}
 }

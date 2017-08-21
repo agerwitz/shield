@@ -340,7 +340,7 @@ func (db *DB) UpdateTaskLog(id uuid.UUID, more string) error {
 	)
 }
 
-func (db *DB) CreateTaskArchive(id uuid.UUID, key string, effective time.Time) (uuid.UUID, error) {
+func (db *DB) CreateTaskArchive(id uuid.UUID, archive_id uuid.UUID, key string, effective time.Time) (uuid.UUID, error) {
 	// fail on empty store_key, as '' seems to satisfy the NOT NULL constraint in postgres
 	if key == "" {
 		return nil, fmt.Errorf("cannot create an archive without a store_key")
@@ -370,7 +370,7 @@ func (db *DB) CreateTaskArchive(id uuid.UUID, key string, effective time.Time) (
 	r.Close()
 
 	// insert an archive with all proper references, expiration, etc.
-	archive_id := uuid.NewRandom()
+	//archive_id := uuid.NewRandom()
 	validtime := ValidateEffectiveUnix(effective)
 	err = db.Exec(
 		`INSERT INTO archives
