@@ -1,14 +1,12 @@
 package core
 
 import (
-	"bufio"
-	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	"github.com/starkandwayne/goutils/timestamp"
 	"github.com/starkandwayne/shield/db"
 	"github.com/starkandwayne/shield/timespec"
-	"gopkg.in/yaml.v2"
 )
 
 var Version = "(development)"
@@ -48,6 +45,9 @@ type Core struct {
 	listen  string
 	auth    []AuthConfig
 	motd    string
+
+	/* vault */
+	vault Vault
 
 	DB *db.DB
 }
@@ -106,7 +106,31 @@ func (core *Core) Run() error {
 	}
 
 	core.cleanup()
-	core.initVault()
+
+	core.vault = Vault{
+		URL:            "http://127.0.0.1:8200",
+		Token:          "",
+		EncryptionType: "",
+		Insecure:       true,
+	}
+	core.vault.HTTP = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: core.vault.Insecure,
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			req.Header.Add("X-Vault-Token", core.vault.Token)
+			return nil
+		},
+	}
+	if err := core.vault.Init("vault/config.crypt"); err != nil {
+		log.Errorf("vault failed to initialize: %s", err)
+	}
+
 	core.api()
 	core.runWorkers()
 
@@ -402,55 +426,47 @@ func (core *Core) worker(id int) {
 		if task.Op == db.BackupOperation {
 			task.ArchiveUUID = uuid.NewRandom()
 
-			cmd := exec.Command("safe", "gen", "-p", "0-9A-F", "32", "secret/archives/"+task.ArchiveUUID.String(), "key")
-			err := cmd.Run()
+			encIV, err := core.vault.Gen(16)
 			if err != nil {
-				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to generate encryption keys: %s\n", id, err)
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d failed to generate encryption IV: %s\n", id, err)
 				core.handleFailure(task)
 				continue
 			}
 
-			cmd = exec.Command("safe", "gen", "-p", "0-9A-F", "16", "secret/archives/"+task.ArchiveUUID.String(), "iv")
-			err = cmd.Run()
+			encKey := ""
+			if strings.Contains(core.vault.EncryptionType, "128") {
+				encKey, err = core.vault.Gen(16)
+			} else {
+				encKey, err = core.vault.Gen(32)
+			}
 			if err != nil {
-				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to generate encryption iv: %s\n", id, err)
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d failed to generate encryption key: %s\n", id, err)
 				core.handleFailure(task)
 				continue
 			}
 
-			cmd = exec.Command("safe", "set", "secret/archives/"+task.ArchiveUUID.String(), "type=aes-256-cbc")
-			err = cmd.Run()
+			err = core.vault.Put("secret/archives/"+task.ArchiveUUID.String(), map[string]interface{}{
+				"key":  encKey,
+				"iv":   encIV,
+				"type": core.vault.EncryptionType,
+				"uuid": task.ArchiveUUID.String(),
+			})
+
 			if err != nil {
-				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption type: %s\n", id, err)
+				core.handleOutput(task, "TASK FAILED!!  shield worker %d failed to set encryption vars: %s\n", id, err)
 				core.handleFailure(task)
 				continue
 			}
 
-			cmd = exec.Command("safe", "set", "secret/archives/"+task.ArchiveUUID.String(), "uuid="+task.ArchiveUUID.String())
-			err = cmd.Run()
-			if err != nil {
-				core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
-				core.handleFailure(task)
-				continue
-			}
 		}
 
-		cmd := exec.Command("safe", "get", "secret/archives/"+task.ArchiveUUID.String())
-		var outb bytes.Buffer
-		cmd.Stdout = &outb
-		err := cmd.Run()
-		if err != nil {
+		data, exists, err := core.vault.Get("secret/archives/" + task.ArchiveUUID.String())
+		if err != nil || exists == false {
 			core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
 			core.handleFailure(task)
 			continue
 		}
-		var e Encrypt
-		err = yaml.Unmarshal(outb.Bytes(), &e)
-		if err != nil {
-			core.handleOutput(task, "TASK FAILED!!  shield worker %d unable to set encryption uuid: %s\n", id, err)
-			core.handleFailure(task)
-			continue
-		}
+
 		/* connect to the remote SSH agent for this specific request
 		   (a worker may connect to lots of different agents in its
 		    lifetime; these connections endure long enough to submit
@@ -462,9 +478,9 @@ func (core *Core) worker(id int) {
 			StorePlugin:    task.StorePlugin,
 			StoreEndpoint:  task.StoreEndpoint,
 			RestoreKey:     task.RestoreKey,
-			EncryptType:    e.EncryptType,
-			EncryptKey:     e.EncryptKey,
-			EncryptIV:      e.EncryptIV,
+			EncryptType:    data["type"].(string),
+			EncryptKey:     data["key"].(string),
+			EncryptIV:      data["iv"].(string),
 		})
 
 		if err != nil {
@@ -592,133 +608,4 @@ func networkIdentity() (string, string) {
 		return v6ip, host
 	}
 	return "(unknown)", ""
-}
-
-func authVault(init bool) {
-	var outerr bytes.Buffer
-	cmd := exec.Command("safe", "status")
-	cmd.Stderr = &outerr
-	err := cmd.Run()
-	if err != nil || init == true {
-		if strings.Contains(outerr.String(), "You are not authenticated to a Vault.") || init == true {
-			file, err := os.Open("keys")
-			if err != nil {
-				fmt.Println("failed to open key file")
-			}
-
-			authToken := make([]byte, 36)
-			stat, err := os.Stat("keys")
-			start := stat.Size() - 37
-			_, err = file.ReadAt(authToken, start)
-			if err != nil {
-				fmt.Println("failed to read auth token")
-			}
-			file.Close()
-			fmt.Println("AuthToken:" + string(authToken))
-			fmt.Println("Authenticating...")
-			cmdstr := "echo " + string(authToken) + " | safe auth"
-			_, err = exec.Command("bash", "-c", cmdstr).Output()
-			if err != nil {
-				fmt.Println("cant auth against safe")
-			}
-			cmd = exec.Command("safe", "status")
-			err = cmd.Run()
-			if err != nil {
-				log.Errorf("shield vault failed initialization process: %s", err)
-				os.Exit(2)
-			}
-		}
-	}
-}
-
-func unsealVault() {
-	fmt.Println("Unsealing vault...")
-
-	keys, err := os.Open("keys")
-	if err != nil {
-		log.Errorf("Failed to open key file: %s", err)
-	}
-
-	scanner := bufio.NewScanner(keys)
-	for scanner.Scan() {
-		cmdstr := "safe vault unseal " + scanner.Text()
-		_, err := exec.Command("bash", "-c", cmdstr).Output()
-		if err != nil {
-			log.Errorf("shield vault failed unseal process: %s", err)
-		}
-	}
-
-	keys.Close()
-}
-
-func vaultStatus() (string, error) {
-	var outerr bytes.Buffer
-	cmd := exec.Command("safe", "vault", "status")
-	cmd.Stdout = &outerr
-	cmd.Stderr = &outerr
-	err := cmd.Run()
-	return outerr.String(), err
-}
-
-func sealVault() (string, error) {
-	var outerr bytes.Buffer
-	cmd := exec.Command("safe", "vault", "seal")
-	cmd.Stdout = &outerr
-	cmd.Stderr = &outerr
-	err := cmd.Run()
-	return outerr.String(), err
-}
-
-func (core *Core) initVault() {
-	var master string
-	fmt.Print("Enter Master Password:")
-	_, err := fmt.Scanf("%s\n", &master)
-	if err != nil {
-		log.Errorf("master password failed to initialize: %s", err)
-		os.Exit(2)
-	}
-	authVault(false)
-	status, err := vaultStatus()
-	if err != nil {
-		if strings.Contains(status, "server is not yet initialized") {
-			fmt.Println("Initializing Shield Vault...")
-			output, err := exec.Command("safe", "vault", "init").Output()
-			if err != nil {
-				log.Errorf("shield vault failed initialization process: %s", err)
-				os.Exit(2)
-			}
-			os.Remove("keys")
-			file, err := os.OpenFile("keys", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0660)
-			if err != nil {
-				log.Errorf("couldn't create the file/directory: %s", err)
-				os.Exit(2)
-			}
-			for i, line := range strings.Split(strings.TrimSuffix(string(output), "\n"), "\n") {
-				if i < 5 {
-					fmt.Println(line[14:len(line)])
-					file.WriteString(line[14:len(line)] + "\n")
-				} else if i == 5 {
-					fmt.Println(line[20:len(line)])
-					file.WriteString(line[20:len(line)] + "\n")
-				} else {
-					break
-				}
-			}
-			file.Close()
-			authVault(true)
-			unsealVault()
-		}
-		if strings.Contains(status, "Sealed: true") {
-			unsealVault()
-		}
-	}
-
-	//Check to see if authourized yet
-	status, err = vaultStatus()
-	if err != nil || !strings.Contains(status, "Sealed: false") {
-		log.Errorf("shield vault failed to unseal: %s", err)
-		os.Exit(2)
-	} else {
-		fmt.Println("Good to go")
-	}
 }

@@ -23,12 +23,6 @@ type AgentCommand struct {
 	EncryptIV      string `json:"encrypt_iv,omitempty"`
 }
 
-type Encrypt struct {
-	EncryptType string `yaml:"type,omitempty"`
-	EncryptKey  string `yaml:"key,omitempty"`
-	EncryptIV   string `yaml:"iv,omitempty"`
-}
-
 type AgentClient struct {
 	config *ssh.ClientConfig
 	key    ssh.Signer
