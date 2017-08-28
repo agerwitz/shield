@@ -1340,10 +1340,10 @@ type v2Health struct {
 		Color   string `json:"color"`
 	} `json:"shield"`
 	Health struct {
-		API         bool `json:"api_ok"`
-		Storage     bool `json:"storage_ok"`
-		Jobs        bool `json:"jobs_ok"`
-		VaultSealed bool `json:"vault_sealed"`
+		API         bool   `json:"api_ok"`
+		Storage     bool   `json:"storage_ok"`
+		Jobs        bool   `json:"jobs_ok"`
+		VaultStatus string `json:"vault_status"`
 	} `json:"health"`
 
 	Storage []v2StorageHealth `json:"storage"`
@@ -1402,9 +1402,26 @@ func (core *Core) v2GetHealth(w http.ResponseWriter, req *http.Request) {
 	}
 	health.Stats.Jobs = len(jobs)
 
-	if health.Health.VaultSealed, err = core.vault.IsSealed(); err != nil {
+	vaultSealed, err := core.vault.IsSealed()
+	if err != nil {
 		bail(w, err)
 		return
+	}
+
+	vaultInit, err := core.vault.IsInitialized()
+	if err != nil {
+		bail(w, err)
+		return
+	}
+
+	if vaultInit {
+		if vaultSealed {
+			health.Health.VaultStatus = "sealed"
+		} else {
+			health.Health.VaultStatus = "unsealed"
+		}
+	} else {
+		health.Health.VaultStatus = "uninitialized"
 	}
 
 	if health.Stats.Systems, err = core.DB.CountTargets(nil); err != nil {

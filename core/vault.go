@@ -33,26 +33,12 @@ var status struct {
 }
 
 func (vault *Vault) Init(store string) error {
+	initialized, err := vault.IsInitialized()
+	if err != nil {
+		return err
+	}
 
-	log.Debugf("checking initialization state of the vault")
-	res, err := vault.Do("GET", "/v1/sys/init", nil)
-	if err != nil {
-		log.Errorf("failed to check initialization state of the vault: %s", err)
-		return err
-	}
-	b, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Errorf("failed to read response from the vault, concerning its initialization state: %s", err)
-		return err
-	}
-	var init struct {
-		Initialized bool `json:"initialized"`
-	}
-	if err = json.Unmarshal(b, &init); err != nil {
-		log.Errorf("failed to parse response from the vault, concerning its initialization state: %s", err)
-		return err
-	}
-	if init.Initialized {
+	if initialized {
 		log.Infof("vault is already initialized")
 
 		log.Debugf("reading credentials files from %s", store)
@@ -76,7 +62,7 @@ func (vault *Vault) Init(store string) error {
 	//////////////////////////////////////////
 
 	log.Infof("initializing the vault with 1/1 keys")
-	res, err = vault.Do("PUT", "/v1/sys/init", map[string]int{
+	res, err := vault.Do("PUT", "/v1/sys/init", map[string]int{
 		"secret_shares":    1,
 		"secret_threshold": 1,
 	})
@@ -84,7 +70,7 @@ func (vault *Vault) Init(store string) error {
 		log.Errorf("failed to initialize the vault: %s", err)
 		return err
 	}
-	b, err = ioutil.ReadAll(res.Body)
+	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		log.Errorf("failed to read response from the vault, concerning our initialization attempt: %s", err)
 		return err
@@ -294,4 +280,26 @@ func (vault *Vault) IsSealed() (bool, error) {
 	}
 
 	return status.Sealed, err
+}
+
+func (vault *Vault) IsInitialized() (bool, error) {
+	log.Debugf("checking initialization state of the vault")
+	res, err := vault.Do("GET", "/v1/sys/init", nil)
+	if err != nil {
+		log.Errorf("failed to check initialization state of the vault: %s", err)
+		return false, err
+	}
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Errorf("failed to read response from the vault, concerning its initialization state: %s", err)
+		return false, err
+	}
+	var init struct {
+		Initialized bool `json:"initialized"`
+	}
+	if err = json.Unmarshal(b, &init); err != nil {
+		log.Errorf("failed to parse response from the vault, concerning its initialization state: %s", err)
+		return false, err
+	}
+	return init.Initialized, err
 }
