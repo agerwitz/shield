@@ -1299,9 +1299,10 @@ func (core *Core) v1CancelTask(w http.ResponseWriter, req *http.Request) {
       "color"   : ""
     },
     "health": {
-      "api_ok"     : true,
-      "storage_ok" : true,
-      "jobs_ok"    : true
+      "api_ok"       : true,
+      "storage_ok"   : true,
+	  "jobs_ok"      : true,
+	  "vault_sealed" : false,
     },
     "storage": [
       { "name": "s3", "healthy": true },
@@ -1339,9 +1340,10 @@ type v2Health struct {
 		Color   string `json:"color"`
 	} `json:"shield"`
 	Health struct {
-		API     bool `json:"api_ok"`
-		Storage bool `json:"storage_ok"`
-		Jobs    bool `json:"jobs_ok"`
+		API         bool `json:"api_ok"`
+		Storage     bool `json:"storage_ok"`
+		Jobs        bool `json:"jobs_ok"`
+		VaultSealed bool `json:"vault_sealed"`
 	} `json:"health"`
 
 	Storage []v2StorageHealth `json:"storage"`
@@ -1399,6 +1401,11 @@ func (core *Core) v2GetHealth(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	health.Stats.Jobs = len(jobs)
+
+	if health.Health.VaultSealed, err = core.vault.IsSealed(); err != nil {
+		bail(w, err)
+		return
+	}
 
 	if health.Stats.Systems, err = core.DB.CountTargets(nil); err != nil {
 		bail(w, err)

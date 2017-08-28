@@ -28,6 +28,10 @@ type VaultCreds struct {
 	EncryptionType string `json:"encryption_type"`
 }
 
+var status struct {
+	Sealed bool `json:"sealed"`
+}
+
 func (vault *Vault) Init(store string) error {
 
 	log.Debugf("checking initialization state of the vault")
@@ -127,28 +131,12 @@ func (vault *Vault) Init(store string) error {
 
 func (vault *Vault) Unseal(key string) error {
 
-	log.Debugf("checking current seal status of the vault")
-	res, err := vault.Do("GET", "/v1/sys/seal-status", nil)
+	sealed, err := vault.IsSealed()
 	if err != nil {
-		log.Errorf("failed to check current seal status of the vault: %s", err)
-		return err
-	}
-	b, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Errorf("failed to read response from the vault, concerning current seal status: %s", err)
 		return err
 	}
 
-	var status struct {
-		Sealed bool `json:"sealed"`
-	}
-	err = json.Unmarshal(b, &status)
-	if err != nil {
-		log.Errorf("failed to parse response from the vault, concerning current seal status: %s", err)
-		return err
-	}
-
-	if !status.Sealed {
+	if !sealed {
 		log.Infof("vault is already unsealed")
 		return nil
 	}
@@ -156,18 +144,19 @@ func (vault *Vault) Unseal(key string) error {
 	//////////////////////////////////////////
 
 	log.Infof("vault is sealed; unsealing it")
-	res, err = vault.Do("POST", "/v1/sys/unseal", map[string]string{
+	res, err := vault.Do("POST", "/v1/sys/unseal", map[string]string{
 		"key": key,
 	})
 	if err != nil {
 		log.Errorf("failed to unseal vault: %s", err)
 		return err
 	}
-	b, err = ioutil.ReadAll(res.Body)
+	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		log.Errorf("failed to read response from the vault, concerning our unseal attempt: %s", err)
 		return err
 	}
+
 	err = json.Unmarshal(b, &status)
 	if err != nil {
 		log.Errorf("failed to parse response from the vault, concerning our unseal attempt: %s", err)
@@ -271,6 +260,9 @@ func (vault *Vault) Gen(length int) (string, error) {
 	var buffer bytes.Buffer
 
 	for i := 0; i < length; i++ {
+		if i > 0 && i%4 == 0 {
+			buffer.WriteString("-")
+		}
 		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
 		if err != nil {
 			return "", err
@@ -280,4 +272,26 @@ func (vault *Vault) Gen(length int) (string, error) {
 	}
 
 	return buffer.String(), nil
+}
+
+func (vault *Vault) IsSealed() (bool, error) {
+	log.Debugf("checking current seal status of the vault")
+	res, err := vault.Do("GET", "/v1/sys/seal-status", nil)
+	if err != nil {
+		log.Errorf("failed to check current seal status of the vault: %s", err)
+		return true, err
+	}
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Errorf("failed to read response from the vault, concerning current seal status: %s", err)
+		return true, err
+	}
+
+	err = json.Unmarshal(b, &status)
+	if err != nil {
+		log.Errorf("failed to parse response from the vault, concerning current seal status: %s", err)
+		return true, err
+	}
+
+	return status.Sealed, err
 }

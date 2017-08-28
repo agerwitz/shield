@@ -479,8 +479,8 @@ func (core *Core) worker(id int) {
 			StoreEndpoint:  task.StoreEndpoint,
 			RestoreKey:     task.RestoreKey,
 			EncryptType:    data["type"].(string),
-			EncryptKey:     data["key"].(string),
-			EncryptIV:      data["iv"].(string),
+			EncryptKey:     strings.Replace(data["key"].(string), "-", "", -1),
+			EncryptIV:      strings.Replace(data["iv"].(string), "-", "", -1),
 		})
 
 		if err != nil {
