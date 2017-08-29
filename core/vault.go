@@ -261,7 +261,6 @@ func (vault *Vault) Gen(length int) (string, error) {
 }
 
 func (vault *Vault) IsSealed() (bool, error) {
-	log.Debugf("checking current seal status of the vault")
 	res, err := vault.Do("GET", "/v1/sys/seal-status", nil)
 	if err != nil {
 		log.Errorf("failed to check current seal status of the vault: %s", err)
@@ -283,7 +282,6 @@ func (vault *Vault) IsSealed() (bool, error) {
 }
 
 func (vault *Vault) IsInitialized() (bool, error) {
-	log.Debugf("checking initialization state of the vault")
 	res, err := vault.Do("GET", "/v1/sys/init", nil)
 	if err != nil {
 		log.Errorf("failed to check initialization state of the vault: %s", err)

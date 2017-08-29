@@ -137,8 +137,17 @@ func (core *Core) Run() error {
 	for {
 		select {
 		case <-core.fastloop.C:
-			core.scheduleTasks()
-			core.runPending()
+			sealed, err := core.vault.IsSealed()
+			initialized, initErr := core.vault.IsInitialized()
+			if initialized && !sealed {
+				core.scheduleTasks()
+				core.runPending()
+			} else {
+				if err != nil || initErr != nil {
+					log.Errorf("Failed to schedule tasks due to Vault error: %s %s", err, initErr)
+				}
+				log.Errorf("Failed to schedule tasks due to Sealed Vault")
+			}
 
 		case <-core.slowloop.C:
 			core.expireArchives()
