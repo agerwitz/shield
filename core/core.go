@@ -129,6 +129,7 @@ func (core *Core) Run() error {
 	}
 	if err := core.vault.Init("vault/config.crypt"); err != nil {
 		log.Errorf("vault failed to initialize: %s", err)
+		os.Exit(2)
 	}
 
 	core.api()
