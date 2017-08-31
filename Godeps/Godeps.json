@@ -7,6 +7,18 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "git.openstack.org/openstack/golang-client/objectstorage/v1",
+			"Rev": "f8471e433432b26dd29aa1c1cd42317a9d79a551"
+		},
+		{
+			"ImportPath": "git.openstack.org/openstack/golang-client/openstack",
+			"Rev": "f8471e433432b26dd29aa1c1cd42317a9d79a551"
+		},
+		{
+			"ImportPath": "git.openstack.org/openstack/golang-client/util",
+			"Rev": "f8471e433432b26dd29aa1c1cd42317a9d79a551"
+		},
+		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/storage",
 			"Comment": "v8.1.1-beta",
 			"Rev": "4897648e310020dae650a89c31ff633284c13a24"
@@ -351,8 +363,8 @@
 			"Rev": "a2ab8644e0b6a33df2cbe44673bd0f6ebba9abc3"
 		},
 		{
-			"ImportPath": "github.com/pborman/getopt",
-			"Rev": "2211c0f1daa1d165eb31026fc509c007a7fa067b"
+			"ImportPath": "github.com/pborman/getopt/v2",
+			"Rev": "7148bc3a4c3008adfcab60cbebfd0576018f330b"
 		},
 		{
 			"ImportPath": "github.com/pborman/uuid",

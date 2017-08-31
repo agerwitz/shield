@@ -8,6 +8,7 @@
 # ignore the plugin
 /azure
 /consul
+/consul-snapshot
 /docker-postgres*
 /dummy
 /elasticsearch
@@ -20,6 +21,7 @@
 /rabbitmq-broker
 /redis-broker
 /s3
+/swift
 /scality
 /xtrabackup
 

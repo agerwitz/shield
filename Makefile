@@ -12,7 +12,7 @@ format:
 
 # Running Tests
 test:
-	go test ./...
+	go list ./... | grep -v vendor | xargs go test
 	./t/api
 
 # Running Tests for race conditions
@@ -39,20 +39,22 @@ plugins:
 	go $(BUILD_TYPE) ./plugin/postgres
 	go $(BUILD_TYPE) ./plugin/redis-broker
 	go $(BUILD_TYPE) ./plugin/s3
+	go $(BUILD_TYPE) ./plugin/swift
 	go $(BUILD_TYPE) ./plugin/azure
 	go $(BUILD_TYPE) ./plugin/mysql
 	go $(BUILD_TYPE) ./plugin/xtrabackup
 	go $(BUILD_TYPE) ./plugin/rabbitmq-broker
 	go $(BUILD_TYPE) ./plugin/scality
 	go $(BUILD_TYPE) ./plugin/consul
+	go $(BUILD_TYPE) ./plugin/consul-snapshot
 	go $(BUILD_TYPE) ./plugin/mongo
 	go $(BUILD_TYPE) ./plugin/google
 
 clean:
 	rm shieldd shield-agent shield-schema shield
 	rm fs docker-postgres dummy postgres redis-broker
-	rm s3 azure mysql xtrabackup rabbitmq-broker
-	rm consul mongo scality google
+	rm s3 swift azure mysql xtrabackup rabbitmq-broker
+	rm consul consul-snapshot mongo scality google
 
 
 # Run tests with coverage tracking, writing output to coverage/
@@ -93,12 +95,14 @@ release:
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/postgres"          ./plugin/postgres
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/redis-broker"      ./plugin/redis-broker
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/s3"                ./plugin/s3
+	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/swift"             ./plugin/swift
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/azure"             ./plugin/azure
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/mysql"             ./plugin/mysql
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/rabbitmq-broker"   ./plugin/rabbitmq-broker
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/scality"           ./plugin/scality
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/mongo"             ./plugin/mongo
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/consul"            ./plugin/consul
+	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/consul-snapshot"   ./plugin/consul-snapshot
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/xtrabackup"        ./plugin/xtrabackup
 	gox -osarch="linux/amd64" -ldflags="$(LDFLAGS)" --output="$(ARTIFACTS)/plugins/google"            ./plugin/google
 
