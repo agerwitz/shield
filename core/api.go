@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,6 +40,9 @@ func (core *Core) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	case match(req, `GET /v2/health`):
 		core.v2GetHealth(w, req)
+
+	case match(req, `POST /v2/unlock`):
+		core.v2Unlock(w, req)
 
 	}
 
@@ -1890,4 +1894,33 @@ func (core *Core) v2UpdateTenant(w http.ResponseWriter, req *http.Request) {
 func (core *Core) v2GetTenant(w http.ResponseWriter, req *http.Request) {
 }
 func (core *Core) v2PatchTenant(w http.ResponseWriter, req *http.Request) {
+}
+
+func (core *Core) v2Unlock(w http.ResponseWriter, req *http.Request) {
+	if req.ParseForm() != nil {
+		w.WriteHeader(400) // FIXME
+		return
+	}
+
+	master := req.PostFormValue("master_password")
+
+	//TODO: Replace path with config.VaultPath / similar
+	sealCreds, err := core.vault.ReadConfig("vault/config.crypt", master)
+	if err != nil {
+		bail(w, err)
+		return
+	}
+
+	err = core.vault.Unseal(sealCreds.SealKey)
+	if err != nil {
+		bail(w, err)
+		return
+	}
+
+	if sealed, err := core.vault.IsSealed(); sealed == true || err != nil {
+		bail(w, errors.New("Shield failed to unlock key database"))
+		return
+	}
+
+	JSONLiteral(w, `{"ok":"Unlocked Key Database"}`)
 }

@@ -127,6 +127,7 @@ func (core *Core) Run() error {
 			return nil
 		},
 	}
+	//TODO: Replace path with config.VaultPath / similar
 	if err := core.vault.Init("vault/config.crypt"); err != nil {
 		log.Errorf("vault failed to initialize: %s", err)
 		os.Exit(2)

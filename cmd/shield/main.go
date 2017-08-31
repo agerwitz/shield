@@ -9,6 +9,7 @@ import (
 	"github.com/starkandwayne/goutils/ansi"
 	"github.com/starkandwayne/shield/api"
 	cmds "github.com/starkandwayne/shield/cmd/shield/commands"
+	"github.com/starkandwayne/shield/cmd/shield/commands/access"
 	"github.com/starkandwayne/shield/cmd/shield/commands/archives"
 	"github.com/starkandwayne/shield/cmd/shield/commands/backends"
 	"github.com/starkandwayne/shield/cmd/shield/commands/info"
@@ -189,6 +190,8 @@ func addCommands() {
 	cmds.Add("tasks", tasks.List).AKA("list tasks", "ls tasks")
 	cmds.Add("task", tasks.Get).AKA("show task", "view task", "display task", "list task", "ls task")
 	cmds.Add("cancel", tasks.Cancel).AKA("cancel-task", "cancel task", "stop task")
+
+	cmds.Add("unlock", access.Unlock).AKA("unseal")
 }
 
 func addGlobalFlags() {

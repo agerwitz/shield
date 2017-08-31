@@ -50,6 +50,7 @@ func (vault *Vault) Init(store string) error {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter Master Password: ")
 		master, _ := reader.ReadString('\n')
+		master = strings.TrimSpace(master)
 
 		creds, err := vault.ReadConfig(store, master)
 		if err != nil {
@@ -100,13 +101,16 @@ func (vault *Vault) Init(store string) error {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter Encryption Cipher (aes-128, aes-256, twofish): ")
 	encryptionCipher, _ := reader.ReadString('\n')
+	encryptionCipher = strings.TrimSpace(encryptionCipher)
 
 	fmt.Print("Enter Encryption Mode (cfb, ofb, ctr): ")
 	encryptionMode, _ := reader.ReadString('\n')
 	encryptionType := strings.TrimSpace(encryptionCipher) + "-" + strings.TrimSpace(encryptionMode)
+	encryptionType = strings.TrimSpace(encryptionType)
 
 	fmt.Print("Enter Master Password: ")
 	master, _ := reader.ReadString('\n')
+	master = strings.TrimSpace(master)
 
 	creds := VaultCreds{
 		SealKey:        keys.Keys[0],
