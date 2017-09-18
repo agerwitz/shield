@@ -44,10 +44,10 @@ Engineers should be able to integrate support for new data systems and storage s
 
 The system interfaces with data systems that hold the data to back up via Target Plugins.  These plugins are bits of code that are compiled and linked into the Core Daemon, and implement a standard interface for the following operations:
 
-#### backup
-Retrieves data from the data system (via native means like `pg_dump` or the Redis `SAVE` command) and sends it to an Storage Plugin.
+#### Backup
+Retrieves data from the data system (via native means like `pg_dump` or the Redis `SAVE` command) and sends it to a Storage Plugin.
 
-#### restore
+#### Restore
 Retrieves the data from an Storage Plugin and overwrites the data in the data system accordingly, using native means like `pg_restore`.
 
 For data systems that permit full backups across a network (as most RDBMS do), nothing more is needed.  Some data systems, however, make assumptions about the environment in which they operate.  Redis, for example, always dumps its backups to local disk.  To support these data systems, we can implement the Agent Target Plugin, and a corresponding Agent Daemon that will run on the target system.  The Agent Daemon will be responsible for implementing the backup / restore options, and the Agent Target Plugin will forward the requests to it, and relay responses back to the caller.
@@ -58,13 +58,13 @@ Additional information in the [Plugin README](plugin/README.md)
 
 The system interfaces with storage systems for uploading and retrieving backed up data files.  These plugins are bits of code that are compiled and linked into the Core Daemon, and implements a standard interface for the following operations:
 
-#### store
+#### Store
 Store a single data blob (usually a file) in the remote storage system.  Returns a key that can be used for later retrieval.
 
-#### retrieve
+#### Retrieve
 Given a key returned from the store operation, retrieve the data blob.
 
-#### purge
+#### Purge
 Given a key returned from the store operation, delete the stored data.
 
 Additional information in the [Plugin README](plugin/README.md)
@@ -120,7 +120,7 @@ CREATE TABLE targets (
 );
 ```
 
-STORES stores the destination of backup data, i.e. an S3 bucket, local file system directory, etc.  Each record identifies a destination, the method by which to store and retrieve backup data to/from it ('plugin') and specific connection information required ('endpoint')
+STORES stores the destination of backup data, i.e. an S3 bucket, local file system directory, etc.  Each record identifies a destination, the method by which to store and retrieve backup data to/from it ('plugin') and specific connection information required ('endpoint').
 
 ```sql
 CREATE TABLE stores (
@@ -159,7 +159,7 @@ CREATE TABLE retention (
 );
 ```
 
-JOBS keeps track of desired backup behavior, by marrying a target (the data to backup) with a store (where to send that data), according to a schedule (when to do the backups) and a retention policy (how long to keep the data for).
+JOBS keep track of desired backup behavior, by marrying a target (the data to backup) with a store (where to send that data), according to a schedule (when to do the backups) and a retention policy (how long to keep the data for).
 
 JOBS can be annotated by operators to provide context and justification for each job.  For example, tickets can be called out in the `notes` field to direct people to more information about when the backup job was requested, and why.
 
@@ -178,7 +178,7 @@ CREATE TABLE jobs (
 );
 ```
 
-ARCHIVES records all archives as they are created, and keeps track of where the data came from, where it went, when the backed-up data expires, etc.
+ARCHIVES record all archives as they are created, and keep track of where the data came from, where it went, when the backed-up data expires, etc.
 
 ARCHIVES can be annotated by operators, so that they can keep track of specifically important backups, like dumps of databases taken before potentially risky changes are attempted.
 
@@ -285,7 +285,7 @@ $ s3-plugin retrieve --key decaf-bad --endpoint '{"bucket":"test","key":"AKI1230
 
 Each plugin program must implement the following actions, which will be passed as the first argument:
 
-- **info** - Dump a JSON-encoded map containing the following keys, to standard output:
+- **Info** - Dump a JSON-encoded map containing the following keys, to standard output:
 
   1. `name` - The name of the plugin (human-readable)
   2. `author` - The name of the person or team who maintains the plugin.
@@ -296,12 +296,12 @@ Each plugin program must implement the following actions, which will be passed a
      whether or not the plugin can support target and/or store operations.
 
   Other keys are allowed, but ignored, and all keys are reserved for future expansion.  Keys starting
-  with an underscore ('\_') will never be used by shield, and is free for your own use.
+  with an underscore ('\_') will never be used by SHIELD, and is free for your own use.
 
   Always exits 0 to signify success.  Exits non-zero to signify an error, and prints
   diagnostic information to standard error.
 
-- **backup** - Stream a backup blob of arbitrary binary data (per
+- **Backup** - Stream a backup blob of arbitrary binary data (per
   plugin semantics) to standard output, based on the endpoint
   given via the `--endpoint` command line argument.
   For example, a database target plugin may require the DSN and
@@ -313,7 +313,7 @@ Each plugin program must implement the following actions, which will be passed a
 
   Exits 0 on success, or non-zero on failure.
 
-- **restore** - Read a backup blob of arbitrary binary data (per
+- **Restore** - Read a backup blob of arbitrary binary data (per
   plugin semantics) from standard input, and perform a restore
   based on the endpoint given via the `--endpoint` command line argument.
 
@@ -321,7 +321,7 @@ Each plugin program must implement the following actions, which will be passed a
 
   Exits 0 on success, or non-zero on failure.
 
-- **store** - Read a backup blob of arbitrary binary data from
+- **Store** - Read a backup blob of arbitrary binary data from
   standard input, and store it in the remote storage system, based
   on the endpoint given via the `--endpoint` command line argument.
   For example, an S3 plugin might require keys and a bucket name to
@@ -335,12 +335,12 @@ Each plugin program must implement the following actions, which will be passed a
   including the following keys:
 
   1. `key` - An opaque identifier that means something to the plugin for purposes of restore.
-     This will be logged in the database by shield.
+     This will be logged in the database by SIHELD.
 
   Other keys are allowed, but ignored, and all keys are reserved for future expansion.  Keys starting
-  with an underscore ('\_') will never be used by shield, and is free for your own use.
+  with an underscore ('\_') will never be used by SHIELD, and is free for your own use.
 
-- **retrieve** Stream a backup blob of arbitrary binary data to
+- **Retrieve** Stream a backup blob of arbitrary binary data to
   standard output, based on the endpoint configuration given in
   the `--endpoint` command line argument, and a key, as
   given by the `--key` command line argument.  (This
@@ -350,7 +350,7 @@ Each plugin program must implement the following actions, which will be passed a
 
   Exits 0 on success, or non-zero on failure.
 
-- **purge** Remove a backup blob of arbitrary data from the remote
+- **Purge** Remove a backup blob of arbitrary data from the remote
   storage system, based on the endpoint configuration given in
   the `--endpoint` command line argument. The blob to be removed is
   identified via the `--key` command line argument.
@@ -374,7 +374,7 @@ The Makefile is used to assist with development. The available targets are:
 * `race` : runs `ginkgo -race *` to test for race conditions
 * `plugin` | `plugins` : builds all the plugin binaries
 * `shield` : builds the `shieldd`, `shield-schema`, `shield-agent`, and `shield` (CLI) binaries
-* `all` : runs all the tests (except the race test) and builds all the binaries.
+* `all` : runs all the tests (except the race test) and builds all the binaries
 * `fixme` | `fixmes` : finds all FIXMEs in the project
 
 `all` is also the default behavior, so running `make` with no targets is the same as `make all`.
@@ -485,7 +485,7 @@ We need to identify all of the data systems we wish to support with this system.
 * Direct over-the-network backup/restore a la pg_dump / pg_restore
 * Instrumentation of local backup/restore + file shipping via Agent Daemon / Plugin
 
-### Stage 1 Proof-of-Concept
+### Stage 1: Proof-of-Concept
 
 To get this project off the ground, I think we need to do some research and experimental implementation into the following areas:
 
@@ -493,8 +493,8 @@ To get this project off the ground, I think we need to do some research and expe
 * Implement the fs storage plugin to store blobs in the local file system
 * Implement the Core Daemon with limited functionality:
     * Task execution
-    * backup operation
-    * restore operation
+    * Backup operation
+    * Restore operation
 * Implement the HTTP API with limited functionality:
     * /v1/jobs/*
     * /v1/archive/*
@@ -505,7 +505,7 @@ To get this project off the ground, I think we need to do some research and expe
 
 This will let us test flush out any inconsistencies in the architecture, and find any problematic aspects of the problem domain not presently considered.
 
-### Stage 2 Proof-of-Concept
+### Stage 2: Proof-of-Concept
 Next, we extend the proof-of-concept implementation to test out the Agent Target Plugin design, using Redis as the data system.  This entails the following:
 
 * Implement the Agent Daemon (in general)
