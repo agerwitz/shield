@@ -9,7 +9,7 @@ The goal of this project is to build a standalone system that can perform backup
 
 The system should enable self-service for end users to perform ad hoc backup / restore operations, review backup schedules, retention policies and backup job runs, etc.
 
-Engineers should be able to integrate support for new data systems and storage solutions without having to modify core code.
+Engineer should be able to integrate support for new data systems and storage solutions without having to modify core code.
 
 ## Architecture
 
